@@ -1,0 +1,378 @@
+using namespace std;
+//Declaring mass of  Variables
+const double mprt = 0.938;
+const double mmuon = 0.105;
+const double mpion = 0.140;
+const double mneut = 0.940;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////// Recontructed neutrino formulars///////////////////////////////////////////
+    //Defining my functions
+    double getEnuInc(std::vector<double> &momprt, std::vector<double> &mompi, double mommu){//MinErVa inclusive ADD THE LINK FROM THE EMAIL
+      double val = 0;
+      //looping over multiple variables
+      for(unsigned int ii = 0; ii < momprt.size(); ++ii)val += pow(momprt[ii],2)/(2*mprt);
+      
+      for(unsigned int ii = 0; ii < mompi.size(); ++ii)val += pow(mompi[ii],2)/(2*mpion);
+      //declaring a single value
+      val += sqrt(pow(mommu,2)+pow(mmuon,2));
+      if (val == 0)val = -1;
+      return val; 
+    }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+double getEnuT2k(double mommu, double cosTheta_mu, double Eb = 0.030){
+  double Emu = sqrt(pow(mommu,2) + pow(mmuon,2));
+  double numerator = pow(mprt,2) - pow(mneut-Eb,2) - pow(mmuon,2) + 2*(mneut-Eb)*Emu;
+  double denominator = 2*(mneut - Eb - Emu + (mommu*cosTheta_mu));
+  return numerator/denominator;
+ 
+}
+
+void read_file_latest_backup(){
+
+    TFile *fin = new TFile("../files/icarus_out_tree_test2.root", "READ");
+    
+    TTree *icarus_tree = (TTree*)fin->Get("input_tree/infotree_slice");
+    TTree *icarus_tree_tracks = (TTree*)fin->Get("input_tree/infotree_tracks");
+    
+    
+    int run[2], subrun[2],evt[2],slice[2];
+     double reco_ntracks;
+    
+    icarus_tree->SetBranchAddress("Run",&run[0]); icarus_tree_tracks->SetBranchAddress("Run",&run[1]);
+    icarus_tree->SetBranchAddress("Subrun",&subrun[0]); icarus_tree_tracks->SetBranchAddress("Subrun",&subrun[1]);
+    icarus_tree->SetBranchAddress("Evt",&evt[0]); icarus_tree_tracks->SetBranchAddress("Evt",&evt[1]);
+    icarus_tree->SetBranchAddress("Slice",&slice[0]); icarus_tree_tracks->SetBranchAddress("Slice",&slice[1]);
+    icarus_tree->SetBranchAddress("NTracks",&reco_ntracks);
+    
+    std::tuple<int,int,int,int> slice_tuple, track_multivar_tuple;
+   
+    int track_index_counter = 0;
+    
+    map<int,vector<int>> slice_track_index;
+
+    
+
+
+
+    
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////  
+    cout << Form("Found %i slices", (int)icarus_tree->GetEntries()) << endl;
+    int n_entries = (int)icarus_tree->GetEntries();
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    
+    for(int i = 0; i < icarus_tree->GetEntries(); i++){ //icarus_tree->GetEntries()
+        
+        if(i == n_entries-1)break; //weird things happen with the last entry
+        
+        if(i%10000 == 0) cout << "Processing slice " << i << endl;
+        
+        icarus_tree->GetEntry(i);
+        slice_tuple = make_tuple(run[0],subrun[0], evt[0], slice[0]);
+       
+        std::vector<int> track_idx;
+        bool equal = true;
+        
+        while(equal){
+            icarus_tree_tracks->GetEntry(track_index_counter);
+            
+            track_multivar_tuple = make_tuple(run[1],subrun[1], evt[1], slice[1]);
+            
+            if(slice_tuple == track_multivar_tuple){
+                track_idx.push_back(track_index_counter);
+                track_index_counter++;}
+            else equal = false;
+        }
+        if(!((int)reco_ntracks == (int)track_idx.size()))break; //checks consistency
+        
+        slice_track_index[i] = track_idx;
+    }
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    
+    double true_neutrino_flavour, true_neutrino_current_type, true_q2, true_interaction_type, true_topology, true_energy_neutrino, true_vertex_x, true_vertex_y, true_vertex_z;
+    double reco_topology, reco_vertex_x, reco_vertex_y, reco_vertex_z;
+    
+    icarus_tree->SetBranchAddress("TrueNeutrinoFlavour",&true_neutrino_flavour);
+    icarus_tree->SetBranchAddress("NeutrinoCurrentType",&true_neutrino_current_type);
+    icarus_tree->SetBranchAddress("TrueQ2",&true_q2);
+    icarus_tree->SetBranchAddress("TrueInteractionType",&true_interaction_type);
+    icarus_tree->SetBranchAddress("TrueTopology",&true_topology);
+    icarus_tree->SetBranchAddress("TrueVertexPositionX",&true_vertex_x);
+    icarus_tree->SetBranchAddress("TrueVertexPositionY",&true_vertex_y);
+    icarus_tree->SetBranchAddress("TrueVertexPositionZ",&true_vertex_z);
+    icarus_tree->SetBranchAddress("TrueEnergyNeutrino",&true_energy_neutrino);
+    
+    
+    icarus_tree->SetBranchAddress("RecoTopology",&reco_topology);
+    icarus_tree->SetBranchAddress("RecoVertexX",&reco_vertex_x);
+    icarus_tree->SetBranchAddress("RecoVertexY",&reco_vertex_y);
+    icarus_tree->SetBranchAddress("RecoVertexZ",&reco_vertex_z);
+   
+    
+    
+    double true_track_pdg, true_track_momenta_x, true_track_momenta_y, true_track_momenta_z, true_track_energy, true_track_start_pos_x, true_track_start_pos_y, true_track_start_pos_z, true_track_end_pos_x, true_track_end_pos_y, true_track_end_pos_z;
+    
+    double reco_track_score, reco_track_pdg, reco_track_cosT, reco_track_phi, reco_track_momenta, reco_track_start_pos_x, reco_track_start_pos_y, reco_track_start_pos_z, reco_track_end_pos_x, reco_track_end_pos_y, reco_track_end_pos_z;
+    
+    
+    icarus_tree_tracks->SetBranchAddress("TrackTruePdg", &true_track_pdg);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueMomentaX", &true_track_momenta_x);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueMomentaY", &true_track_momenta_y);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueMomentaZ", &true_track_momenta_z);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueE", &true_track_energy);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueStartPosX", &true_track_start_pos_x);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueStartPosY", &true_track_start_pos_y);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueStartPosZ", &true_track_start_pos_z);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueEndPosX", &true_track_end_pos_x);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueEndPosY", &true_track_end_pos_y);
+    icarus_tree_tracks->SetBranchAddress("TrackTrueEndPosZ", &true_track_end_pos_z);
+
+    icarus_tree_tracks->SetBranchAddress("TrackScore", &reco_track_score);
+    icarus_tree_tracks->SetBranchAddress("TrackSelPdg", &reco_track_pdg);
+    icarus_tree_tracks->SetBranchAddress("TrackRecoCosZ", &reco_track_cosT);
+    icarus_tree_tracks->SetBranchAddress("TrackRecoPhi", &reco_track_phi);
+    icarus_tree_tracks->SetBranchAddress("TrackRecoMomenta", &reco_track_momenta);
+    icarus_tree_tracks->SetBranchAddress("TrackStartPosX", &reco_track_start_pos_x);
+    icarus_tree_tracks->SetBranchAddress("TrackStartPosY", &reco_track_start_pos_y);
+    icarus_tree_tracks->SetBranchAddress("TrackStartPosZ", &reco_track_start_pos_z);
+    icarus_tree_tracks->SetBranchAddress("TrackEndPosX", &reco_track_end_pos_x);
+    icarus_tree_tracks->SetBranchAddress("TrackEndPosY", &reco_track_end_pos_y);
+    icarus_tree_tracks->SetBranchAddress("TrackEndPosZ", &reco_track_end_pos_z);
+    
+    //WORKSPACE
+    //histograms declaration
+    const int nEnuBins = 70;
+    const double nEnuLow = 0;
+    const double nEnuHigh = 3;
+    TH1D *hist = new TH1D("","",50, 0,3);
+    TH1D *hTrueEnu = new TH1D("hTrueEnu","",50, 0,3);
+    TGraph *pos = new TGraph(int(icarus_tree_tracks->GetEntries()));
+    TH1D *hTrueEnu_0pi = new TH1D("hTrueEnu_0pi","",50, 0,3);
+    TH1D *hTrueEnu_Npi = new TH1D("hTrueEnu_Npi","",50, 0,3);
+    TH1D *h_ntracks_0pi = new TH1D("h_ntracks_0pi", "high-score reco tracks per slice (cc 0#pi);n_{tracks} (score > 0.45);entries", 10, 0, 10);
+    TH1D *h_ntracks_npi = new TH1D("h_ntracks_npi", "high-score reco tracks per slice (cc n#pi);n_{tracks} (score > 0.45);entries", 10, 0, 10);
+    TH1D *h_nprotons_0pi = new TH1D("h_nprotons_0pi", "n_protons per slice (cc 0#pi);n_{protons} (score > 0.45);entries", 10, 0, 10);
+    TH1D *h_nprotons_npi = new TH1D("h_nprotons_npi", "n_protons per slice (cc n#pi);n_{protons} (score > 0.45);entries", 10, 0, 10);
+    TH1D *h_npions_0pi = new TH1D("h_npions_0pi", "n_pions per slice (cc 0#pi);n_{pions} (score > 0.45);entries", 10, 0, 10);
+    TH1D *h_npions_npi = new TH1D("h_npions_npi", "n_pions per slice (cc n#pi);n_{pions} (score > 0.45);entries", 10, 0, 10);
+
+    TH1D *hRecoEnuInc = new TH1D("hRecoEnuInc","", nEnuBins, nEnuLow, nEnuHigh);
+    TH1D *hRecoEnuInc_signal = new TH1D("hRecoEnuInc_signal","", nEnuBins, nEnuLow, nEnuHigh);//signal is selected true numu CC 
+    TH1D *hRecoEnuInc_0pi = new TH1D("hRecoEnuInc_0pi","",nEnuBins, nEnuLow, nEnuHigh);
+    TH1D *hRecoEnuInc_npi = new TH1D("hRecoEnuInc_npi","",nEnuBins, nEnuLow, nEnuHigh);
+
+    TH1D *hRecoEnuT2k = new TH1D("hRecoEnuT2k", "", nEnuBins, nEnuLow, nEnuHigh);
+    TH1D *hRecoEnuT2k_IncSignal = new TH1D("hRecoEnuT2k_IncSignal", "", nEnuBins, nEnuLow, nEnuHigh);//signal is selected true numu CC
+    TH1D *hRecoEnuT2k_0pi = new TH1D("hRecoEnuT2k_0pi", "", nEnuBins, nEnuLow, nEnuHigh);
+    TH1D *hRecoEnuT2k_npi = new TH1D("hRecoEnuT2k_npi", "", nEnuBins, nEnuLow, nEnuHigh);
+
+    TH1D *hResEnu_vis = new TH1D("hResEnu_vis", "", nEnuBins, -1, 1);
+    TH1D *hResEnu_t2kqe = new TH1D("hResEnu_t2kqe", "", nEnuBins, -1, 1);
+
+    TH1D *hResEnu_Vis_signal = new TH1D("hResEnu_Vis_signal", "", nEnuBins, -1, 1);
+    TH1D *hResEnu_t2kqe_signal = new TH1D("hResEnu_t2kqe_signal", "", nEnuBins, -1, 1);
+
+
+    TH1D *hResEnu0pi_vis = new TH1D("hResEnu0pi_vis", "", nEnuBins, -1, 1);
+    TH1D *hResEnuNpi_vis = new TH1D("hResEnuNpi_vis", "", nEnuBins, -1, 1);
+
+    TH1D *hResEnu0pi_t2kqe = new TH1D("hResEnu0pi_t2kqe", "", nEnuBins, -1, 1);
+    TH1D *hResEnuNpi_t2kqe = new TH1D("hResEnuNpi_t2kqe", "", nEnuBins, -1, 1); 
+    /////////////////2D HISTOGRAMS//////////////////////////////////////////////////////////////////////////////////////////////////////////
+    TH2D *hResEnuInc_2Dsignal = new TH2D("hResEnuInc_2Dsignal","", nEnuBins, nEnuLow, nEnuHigh, nEnuBins,-1, 1);//signal is selected true numu CC 
+    TH2D *hResEnuT2k_2Dsignal = new TH2D("hResEnuT2k_2Dsignal","", nEnuBins, nEnuLow, nEnuHigh, nEnuBins,-1, 1);
+
+    TH2D *hResEnu0pi_viSig = new TH2D("hResEnu0pi_viSig", "", nEnuBins, nEnuLow, nEnuHigh, nEnuBins,-1, 1);
+    TH2D *hResEnuNpi_viSig = new TH2D("hResEnuNpi_viSig", "", nEnuBins, nEnuLow, nEnuHigh, nEnuBins,-1, 1);
+
+    TH2D *hResEnu0pi_t2kSig = new TH2D("hResEnu0pi_t2kSig", "", nEnuBins, nEnuLow, nEnuHigh, nEnuBins,-1, 1);
+    TH2D *hResEnuNpi_t2kSig = new TH2D("hResEnuNpi_t2kSig", "", nEnuBins, nEnuLow, nEnuHigh, nEnuBins,-1, 1); 
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////TGRAPHS
+    std::vector<double>vResEnu_Vis_signal;
+    std::vector<double>vResEnu_t2kqe_signal;
+    std::vector<double>vRecoEnu_Vis_signal;
+    std::vector<double>vRecoEnu_t2kqe_signal;
+     
+
+    //loop over slices
+     for(int slc = 0; slc < (int)slice_track_index.size(); slc++){
+     icarus_tree->GetEntry(slc);
+      hTrueEnu->Fill(true_energy_neutrino);
+      int npi = 0;
+      int n_high_score_tracks = 0;
+      int n_protons = 0;
+      int n_pions = 0;
+      std::vector<double> vmomprt, vmompi;
+      double dmommu = 0;
+      double dtheta_mu = 0;     // muon angle
+      double costheta_mu = 0;     // muon angle
+      double dEb = 0.027;       // binding energy for T2K
+      
+
+   
+      //loop over the tracks
+      for(int trkid : slice_track_index[slc]){
+            icarus_tree_tracks->GetEntry(trkid);
+	    if(reco_track_score <= 0.45)continue;
+
+	    if (reco_track_pdg == 13 && reco_track_momenta > dmommu) {
+	      dmommu = reco_track_momenta;
+	      // dtheta_mu = acos(reco_track_cosT);////SHOULD I ADD LIMITS OR CONSTRAINTS?
+	      costheta_mu = reco_track_cosT;
+	    }
+	   
+	    if(reco_track_pdg == 2212){
+	      n_protons++;
+	      vmomprt.push_back(reco_track_momenta);
+	    }
+	    if(reco_track_pdg == 211){
+	      n_pions++;
+	      vmompi.push_back(reco_track_momenta);
+	    }
+	    if(abs(true_track_pdg) == 211)npi++;
+	    n_high_score_tracks++;
+	    
+	        
+      }//trkid close
+
+
+      // for filling the histograms
+      hRecoEnuInc->Fill(getEnuInc(vmomprt, vmompi, dmommu));
+      hRecoEnuT2k->Fill(getEnuT2k(dmommu, costheta_mu, dEb));
+      if (true_energy_neutrino>0){
+	hResEnu_vis->Fill((true_energy_neutrino - getEnuInc(vmomprt, vmompi, dmommu))/true_energy_neutrino);
+	hResEnu_t2kqe->Fill((true_energy_neutrino - getEnuT2k(dmommu, costheta_mu, dEb))/true_energy_neutrino);
+	if ( true_topology == 2||true_topology == 3 || true_topology == 4 ){
+	  hRecoEnuInc_signal->Fill(getEnuInc(vmomprt, vmompi, dmommu));//topology reconstruction inclusive plot
+	  hRecoEnuT2k_IncSignal->Fill(getEnuT2k(dmommu, costheta_mu, dEb));//topology reconstruction inclusive plot
+	  hResEnu_Vis_signal->Fill((true_energy_neutrino - getEnuInc(vmomprt, vmompi, dmommu))/true_energy_neutrino);//topology residual inc  plot
+	  hResEnu_t2kqe_signal->Fill((true_energy_neutrino - getEnuT2k(dmommu, costheta_mu, dEb))/true_energy_neutrino);//topology residual inc plot
+	  vResEnu_Vis_signal.push_back((true_energy_neutrino - getEnuInc(vmomprt, vmompi, dmommu))/true_energy_neutrino);
+	  vResEnu_t2kqe_signal.push_back((true_energy_neutrino - getEnuT2k(dmommu, costheta_mu, dEb))/true_energy_neutrino);
+	  vRecoEnu_Vis_signal.push_back(getEnuInc(vmomprt, vmompi, dmommu));
+	  vRecoEnu_t2kqe_signal.push_back(getEnuT2k(dmommu, costheta_mu, dEb));
+	  hResEnuInc_2Dsignal->Fill(getEnuInc(vmomprt, vmompi, dmommu), (true_energy_neutrino - getEnuInc(vmomprt, vmompi, dmommu))/true_energy_neutrino);
+	  hResEnuT2k_2Dsignal->Fill(getEnuT2k(dmommu, costheta_mu, dEb), (true_energy_neutrino - getEnuT2k(dmommu, costheta_mu, dEb))/true_energy_neutrino);
+	}
+      }
+
+      if (n_pions == 0) {
+	hTrueEnu_0pi->Fill(true_energy_neutrino);
+	h_ntracks_0pi->Fill(n_high_score_tracks);
+	h_nprotons_0pi->Fill(n_protons);
+	h_npions_0pi->Fill(n_pions);
+	
+	if ( true_topology == 2||true_topology == 3 ){
+	  hRecoEnuInc_0pi->Fill(getEnuInc(vmomprt, vmompi, dmommu));
+	  hRecoEnuT2k_0pi->Fill(getEnuT2k(dmommu, costheta_mu, dEb));
+	  hResEnu0pi_vis->Fill((true_energy_neutrino - getEnuInc(vmomprt, vmompi, dmommu))/true_energy_neutrino);//res 0pi plot for vis
+	  hResEnu0pi_t2kqe->Fill((true_energy_neutrino - getEnuT2k(dmommu, costheta_mu, dEb))/true_energy_neutrino);//res 0pi plot for T2K
+	  hResEnu0pi_viSig->Fill(getEnuInc(vmomprt, vmompi, dmommu), (true_energy_neutrino - getEnuInc(vmomprt, vmompi, dmommu))/true_energy_neutrino);
+	  hResEnu0pi_t2kSig->Fill(getEnuT2k(dmommu, costheta_mu, dEb), (true_energy_neutrino - getEnuT2k(dmommu, costheta_mu, dEb))/true_energy_neutrino);
+	}
+      }
+	
+      if (n_pions >  0) {
+	hTrueEnu_Npi->Fill(true_energy_neutrino);
+	h_ntracks_npi->Fill(n_high_score_tracks);
+	h_nprotons_npi->Fill(n_protons);
+	h_npions_npi->Fill(n_pions);
+	if ( true_topology == 4 ){
+	  hRecoEnuInc_npi->Fill(getEnuInc(vmomprt, vmompi, dmommu));
+	  hRecoEnuT2k_npi->Fill(getEnuT2k(dmommu, costheta_mu, dEb));
+	  hResEnuNpi_vis->Fill((true_energy_neutrino - getEnuInc(vmomprt, vmompi, dmommu))/true_energy_neutrino);//res 0pi
+	  hResEnuNpi_t2kqe->Fill((true_energy_neutrino - getEnuT2k(dmommu, costheta_mu, dEb))/true_energy_neutrino);
+	  hResEnuNpi_viSig->Fill(getEnuInc(vmomprt, vmompi, dmommu), (true_energy_neutrino - getEnuInc(vmomprt, vmompi, dmommu))/true_energy_neutrino);
+	  hResEnuNpi_t2kSig->Fill(getEnuT2k(dmommu, costheta_mu, dEb), (true_energy_neutrino - getEnuT2k(dmommu, costheta_mu, dEb))/true_energy_neutrino);
+	}
+	
+     }
+
+      
+
+      
+      vmomprt.clear();
+      vmompi.clear();
+
+      
+     }//slc close
+      
+    
+     //output file, unique and doesnt require repitition
+      TFile *fout = new TFile("../files/icarus_ana_out.root", "recreate");
+     
+
+
+      // for saving
+      fout->cd();
+      hTrueEnu->Write();
+      hTrueEnu_0pi->Write();
+      hTrueEnu_Npi->Write();
+      h_ntracks_0pi->Write();
+      h_ntracks_npi->Write();
+      h_nprotons_0pi->Write();
+      h_nprotons_npi->Write();
+      h_npions_0pi->Write();
+      h_npions_npi->Write();
+
+      hRecoEnuInc->Write();
+      hRecoEnuInc_0pi->Write();
+      hRecoEnuInc_npi->Write();
+      hRecoEnuInc_signal->Write();
+      
+      hRecoEnuT2k->Write();
+      hRecoEnuT2k_0pi->Write();
+      hRecoEnuT2k_npi->Write();
+      hRecoEnuT2k_IncSignal->Write();
+      
+      hResEnu_vis->Write();
+      hResEnu_t2kqe->Write();
+
+      hResEnu_Vis_signal->Write();
+      hResEnu_t2kqe_signal->Write();
+
+      hResEnu0pi_vis->Write();
+      hResEnu0pi_t2kqe->Write();
+      
+      hResEnuNpi_vis->Write();
+      hResEnuNpi_t2kqe->Write();
+      /*vResEnu_Vis_signal.Write();
+      vResEnu_t2kqe_signal.Write();
+      vRecoEnu_Vis_signal.Write();
+      vRecoEnu_t2kqe_signal.Write();*/
+      TVectorD vResEnu_Vis_signal_T(vResEnu_Vis_signal.size());
+      for (int i = 0; i<vResEnu_Vis_signal.size();++i)vResEnu_Vis_signal_T[i]=vResEnu_Vis_signal[i];
+      vResEnu_Vis_signal_T.Write("vResEnu_Vis_signal_T");
+
+      TVectorD vResEnu_t2kqe_signal_T(vResEnu_t2kqe_signal.size());
+      for (int i = 0; i<vResEnu_t2kqe_signal.size();++i)vResEnu_t2kqe_signal_T[i]=vResEnu_t2kqe_signal[i];
+      vResEnu_t2kqe_signal_T.Write("vResEnu_t2kqe_signal_T");
+
+      TVectorD vRecoEnu_Vis_signal_T(vRecoEnu_Vis_signal.size());
+      for (int i = 0; i<vRecoEnu_Vis_signal.size();++i)vRecoEnu_Vis_signal_T[i]=vRecoEnu_Vis_signal[i];
+      vRecoEnu_Vis_signal_T.Write("vRecoEnu_Vis_signal_T");
+
+      TVectorD vRecoEnu_t2kqe_signal_T(vRecoEnu_t2kqe_signal.size());
+      for (int i = 0; i<vRecoEnu_t2kqe_signal.size();++i)vRecoEnu_t2kqe_signal_T[i]=vRecoEnu_t2kqe_signal[i];
+      vRecoEnu_t2kqe_signal_T.Write("vRecoEnu_t2kqe_signal_T");
+
+      hResEnuInc_2Dsignal->Write();
+      hResEnuT2k_2Dsignal->Write();
+
+      hResEnu0pi_viSig->Write();
+      hResEnu0pi_t2kSig->Write();
+      hResEnuNpi_viSig->Write();
+      hResEnuNpi_t2kSig->Write();
+      
+      
+      
+      fout->Close();
+      fin->Close();
+
+    
+    
+      
+}
